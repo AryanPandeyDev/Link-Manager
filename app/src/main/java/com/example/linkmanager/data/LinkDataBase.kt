@@ -7,7 +7,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 
-@Database(entities = [Link::class], version = 2, exportSchema = true)
+@Database(entities = [Link::class,LinkCategory::class], version = 3, exportSchema = true)
 abstract class LinkDataBase : RoomDatabase() {
 
     abstract fun getLinkDao() : LinkDAO

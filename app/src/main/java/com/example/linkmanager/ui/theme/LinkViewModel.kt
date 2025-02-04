@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.linkmanager.data.Link
+import com.example.linkmanager.data.LinkCategory
 import com.example.linkmanager.data.LinkDAO
 import com.example.linkmanager.data.LinkDataBase
 import com.example.linkmanager.data.LinkRepository
@@ -20,7 +21,31 @@ class LinkViewModel @Inject constructor(
     private val repository: LinkRepository
 ) : ViewModel()  {
 
-    val allLink: Flow<List<Link>> = repository.allLink
+    val allDefaultLinks = repository.allDefaultLinks
+
+    fun allLink(category : String): Flow<List<Link>> {
+        return repository.allLink(category)
+    }
+
+    val allCategory = repository.allCategory
+
+    fun addCategory(category : LinkCategory) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.addCategory(category)
+        }
+    }
+
+    fun updateCategory(category : LinkCategory) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateCategory(category)
+        }
+    }
+
+    fun deleteCategory(category: LinkCategory){
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteCategory(category)
+        }
+    }
 
     fun addLink(link: Link) {
         viewModelScope.launch(Dispatchers.IO) {

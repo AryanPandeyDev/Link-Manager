@@ -24,9 +24,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -59,9 +62,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.linkmanager.data.Link
+import com.example.linkmanager.data.LinkCategory
 import com.example.linkmanager.ui.theme.LinkManagerTheme
 import com.example.linkmanager.ui.theme.LinkViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Delay
 import java.net.URLEncoder
 
 
@@ -72,9 +77,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             LinkManagerTheme {
-                val linkViewModel = hiltViewModel<LinkViewModel>()
-                val links by linkViewModel.allLink.collectAsState(emptyList())
-                LinkManager(links)
+                LinkManager()
             }
         }
     }
@@ -82,7 +85,13 @@ class MainActivity : ComponentActivity() {
 
 
 @Composable
-fun LinkManager(links : List<Link>) {
+fun LinkManager() {
+    val linkViewModel = hiltViewModel<LinkViewModel>()
+    var currentCategory by remember { mutableStateOf("Default") }
+    val links by linkViewModel.allLink(currentCategory).collectAsState(emptyList())
+    val allLinks by linkViewModel.allDefaultLinks.collectAsState(emptyList())
+    val category by linkViewModel.allCategory.collectAsState(emptyList())
+    var categoryDialogBoxVisibility by remember { mutableStateOf(false) }
     var dialogBoxVisibility by remember { mutableStateOf(false) }
     var updateDialogBoxVisibility by remember { mutableStateOf(false) }
     var linkToBeUpdated by remember { mutableStateOf(Link("","")) }
@@ -113,16 +122,67 @@ fun LinkManager(links : List<Link>) {
                 )
             }
             GradientDivider()
+            LazyRow(
+                modifier = Modifier.fillMaxWidth()
+                    .height(60.dp),
+
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxSize()
+                            .wrapContentWidth()
+                            .padding(horizontal = 10.dp)
+                    ) {
+                        Text("All Links",
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.align(Alignment.Center)
+                                .clickable {
+                                    currentCategory = "Default"
+                                }
+                        )
+                    }
+                }
+                items(category) {
+                    Box(
+                        modifier = Modifier.fillMaxSize()
+                            .wrapContentWidth()
+                            .padding(horizontal = 10.dp)
+                    ) {
+                        Text(it.category,
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.align(Alignment.Center)
+                                .clickable {
+                                    currentCategory = it.category
+                                })
+                    }
+                }
+
+                item {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "AddCategories",
+                        modifier = Modifier.size(40.dp)
+                            .padding(end = 10.dp)
+                            .background(color = MaterialTheme.colorScheme.onBackground)
+                            .clickable { categoryDialogBoxVisibility = true}
+                    )
+                }
+            }
             LazyColumn(
                 Modifier.fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
                 contentPadding = PaddingValues(vertical = 10.dp)
             ) {
-                items(links) {
-                    LinkItem(it,{
+                items(
+                    if (currentCategory == "Default") allLinks else links
+                ) {
+                    LinkItem(it) {
                         updateDialogBoxVisibility = true
                         linkToBeUpdated = it
-                    })
+                    }
                 }
             }
 
@@ -137,10 +197,14 @@ fun LinkManager(links : List<Link>) {
                 linkToBeUpdated = Link("","")
             }
         }
+        if (categoryDialogBoxVisibility) {
+            CategoryDialog{categoryDialogBoxVisibility = false}
+        }
         if (dialogBoxVisibility || updateDialogBoxVisibility){
             AddLinkDialog(
                 link = linkToBeUpdated,
-                isUpdate = updateDialogBoxVisibility
+                isUpdate = updateDialogBoxVisibility,
+                currentCategory
             ) {
                 dialogBoxVisibility = false
                 updateDialogBoxVisibility = false
@@ -219,7 +283,8 @@ fun LinkItem(link: Link,update: () -> Unit = {}) {
 fun AddLinkDialog(
     link: Link = Link("",""),
     isUpdate : Boolean = false,
-    onDismiss: () -> Unit
+    category : String,
+    onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val linkViewModel = hiltViewModel<LinkViewModel>()
@@ -256,7 +321,7 @@ fun AddLinkDialog(
                         if (linkName.isEmpty() || linkUrl.isEmpty()) {
                             Toast.makeText(context,"Please Specify all the remaining fields",Toast.LENGTH_SHORT).show()
                         }else {
-                            val addLink = Link(linkName,linkUrl)
+                            val addLink = Link(linkName,linkUrl,category)
                             linkViewModel.addLink(addLink)
                             onDismiss()
                         }
@@ -264,7 +329,7 @@ fun AddLinkDialog(
                         if (linkName.isEmpty() || linkUrl.isEmpty()) {
                             Toast.makeText(context,"Please Specify all the remaining fields",Toast.LENGTH_SHORT).show()
                         }else {
-                            val updateLink = Link(linkName,linkUrl,link.id)
+                            val updateLink = Link(linkName,linkUrl,category, id = link.id)
                             linkViewModel.updateLink(updateLink)
                             onDismiss()
                         }
@@ -335,7 +400,7 @@ fun DarkTaskManagerPreview() {
         Link(linkName = "Android Developers", link = "https://developer.android.com"),
         Link(linkName = "Netflix", link = "https://netflix.com"))
     LinkManagerTheme {
-        LinkManager(mockLinks)
+        LinkManager()
     }
 }
 
@@ -357,7 +422,7 @@ fun TaskManagerPreview() {
         Link(linkName = "Android Developers", link = "https://developer.android.com"),
         Link(linkName = "Netflix", link = "https://netflix.com"))
     LinkManagerTheme {
-        LinkManager(mockLinks)
+        LinkManager()
     }
 }
 
@@ -407,5 +472,47 @@ fun AddLinkDialogPreview() {
 @Composable
 @Preview(showBackground = true)
 fun DialogBox() {
-    LinkManagerTheme { AddLinkDialogPreview() }
+    LinkManagerTheme { CategoryDialog { } }
+}
+
+
+@Composable
+fun CategoryDialog(
+    onDismiss: () -> Unit = {},
+) {
+    var categoryName by remember { mutableStateOf("") }
+    val linkViewModel = hiltViewModel<LinkViewModel>()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Category") },
+        text = {
+            Column {
+                TextField(
+                    value = categoryName,
+                    onValueChange = { categoryName = it },
+                    label = { Text("Category Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        },
+        confirmButton = {
+            Row(Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween){
+                Button(onClick = onDismiss) {
+                    Text("Cancel",Modifier.width(45.dp),
+                        textAlign = TextAlign.Center)
+                }
+                Button(onClick = {
+                    linkViewModel.addCategory(LinkCategory(categoryName))
+                    onDismiss()
+                }) {
+                    Text("Add", modifier = Modifier.width(45.dp),
+                        textAlign = TextAlign.Center)
+                }
+            }
+        },
+        dismissButton = {
+        }
+    )
 }

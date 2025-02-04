@@ -11,7 +11,25 @@ class LinkRepository
     @Inject constructor(private val linkDAO: LinkDAO)
 {
 
-    val allLink: Flow<List<Link>> = linkDAO.getAllLinks()
+    fun allLink(category : String): Flow<List<Link>> {
+        return linkDAO.getAllLinks(category)
+    }
+
+    val allDefaultLinks = linkDAO.allLinks()
+
+    val allCategory = linkDAO.getAllCategories()
+
+    suspend fun addCategory(category : LinkCategory) {
+        return linkDAO.addCategory(category)
+    }
+
+    suspend fun deleteCategory(category: LinkCategory) {
+        return linkDAO.deleteCategory(category)
+    }
+
+    suspend fun updateCategory(category : LinkCategory) {
+        return linkDAO.updateCategory(category)
+    }
 
     suspend fun addLink(link: Link) {
         linkDAO.addLink(link)

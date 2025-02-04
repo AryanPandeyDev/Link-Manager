@@ -21,7 +21,21 @@ interface LinkDAO {
     @Insert
     suspend fun addLink(link: Link)
 
-    @Query("SELECT * from link order by id DESC")
-    fun getAllLinks() : Flow<List<Link>>
+    @Insert
+    suspend fun addCategory(category: LinkCategory)
 
+    @Delete
+    suspend fun deleteCategory(category: LinkCategory)
+
+    @Update
+    suspend fun updateCategory(category : LinkCategory)
+
+    @Query("SELECT * FROM LinkCategory order by categoryId")
+    fun getAllCategories() : Flow<List<LinkCategory>>
+
+    @Query("SELECT * FROM LINK where link.category = :value order by link.id desc")
+    fun getAllLinks(value : String) : Flow<List<Link>>
+
+    @Query("SELECT * FROM LINK ORDER BY ID DESC")
+    fun allLinks() : Flow<List<Link>>
 }
