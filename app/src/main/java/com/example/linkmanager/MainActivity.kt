@@ -3,11 +3,19 @@ package com.example.linkmanager
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
+import android.opengl.Visibility
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,41 +25,62 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +89,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.linkmanager.data.Link
 import com.example.linkmanager.data.LinkCategory
@@ -92,12 +122,16 @@ fun LinkManager() {
     val allLinks by linkViewModel.allDefaultLinks.collectAsState(emptyList())
     val category by linkViewModel.allCategory.collectAsState(emptyList())
     var categoryDialogBoxVisibility by remember { mutableStateOf(false) }
+    var updateCategoryDialogVisibility by remember { mutableStateOf(false) }
     var dialogBoxVisibility by remember { mutableStateOf(false) }
     var updateDialogBoxVisibility by remember { mutableStateOf(false) }
     var linkToBeUpdated by remember { mutableStateOf(Link("","")) }
+    var slidingMenuVisibility by rememberSaveable { mutableStateOf(false)  }
+    var categoryToUpdated by remember { mutableStateOf(LinkCategory("")) }
     Box(
         modifier = Modifier.fillMaxSize()
     ){
+
         Column(
             modifier = Modifier.fillMaxSize()
                 .background(color = MaterialTheme.colorScheme.surface),
@@ -123,53 +157,67 @@ fun LinkManager() {
             }
             GradientDivider()
             LazyRow(
-                modifier = Modifier.fillMaxWidth()
-                    .height(60.dp),
-
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
                 item {
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                            .wrapContentWidth()
-                            .padding(horizontal = 10.dp)
+                    CategoryChip(
+                        text = "All Links",
+                        isSelected = currentCategory == "Default",
+                        onClick = {
+                            currentCategory = "Default"
+                        }
+                    )
+                }
+                items(category) {
+                    CategoryChip(
+                        text = it.category,
+                        isSelected = currentCategory == it.category,
+                        onClick = {
+                            currentCategory = it.category
+                            categoryToUpdated = it
+                        }
+                    )
+                }
+
+                item {
+                    IconButton(
+                        onClick = {
+                            categoryDialogBoxVisibility = true
+                            categoryToUpdated = LinkCategory("")
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                CircleShape
+                            )
                     ) {
-                        Text("All Links",
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.align(Alignment.Center)
-                                .clickable {
-                                    currentCategory = "Default"
-                                }
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Add Category",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
-                items(category) {
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                            .wrapContentWidth()
-                            .padding(horizontal = 10.dp)
-                    ) {
-                        Text(it.category,
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.align(Alignment.Center)
-                                .clickable {
-                                    currentCategory = it.category
-                                })
-                    }
-                }
-
-                item {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "AddCategories",
-                        modifier = Modifier.size(40.dp)
-                            .padding(end = 10.dp)
-                            .background(color = MaterialTheme.colorScheme.onBackground)
-                            .clickable { categoryDialogBoxVisibility = true}
-                    )
-                }
+            }
+            Box(Modifier.fillMaxWidth()
+                .wrapContentHeight()) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = "Add Category",
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                        .size(35.dp)
+                        .padding(end = 3.dp)
+                        .clickable {
+                            Log.d("category", currentCategory)
+                            if (currentCategory != "Default")  slidingMenuVisibility = true
+                        }
+                )
             }
             LazyColumn(
                 Modifier.fillMaxSize()
@@ -197,8 +245,16 @@ fun LinkManager() {
                 linkToBeUpdated = Link("","")
             }
         }
-        if (categoryDialogBoxVisibility) {
-            CategoryDialog{categoryDialogBoxVisibility = false}
+        if (categoryDialogBoxVisibility || updateCategoryDialogVisibility) {
+            CategoryDialog(
+                links,
+                updateCategoryDialogVisibility,
+                categoryToUpdated,
+                { currentCategory = it }
+            ){
+                categoryDialogBoxVisibility = false
+                updateCategoryDialogVisibility = false
+            }
         }
         if (dialogBoxVisibility || updateDialogBoxVisibility){
             AddLinkDialog(
@@ -210,6 +266,18 @@ fun LinkManager() {
                 updateDialogBoxVisibility = false
             }
         }
+        SlidingMenu(
+            slidingMenuVisibility,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            onUpdateCategoryClick = {
+                updateCategoryDialogVisibility = true
+            },
+            onDeleteCategoryClick = {
+                linkViewModel.deleteCategory(categoryToUpdated)
+                currentCategory = "Default"
+            },
+            changeVisibility = {slidingMenuVisibility = false}
+        )
     }
 }
 
@@ -371,7 +439,6 @@ fun AddButton(onClick: ()-> Unit = {}) {
         contentColor = MaterialTheme.colorScheme.onPrimary,
         modifier = Modifier
             .size(buttonSize) // Standard FAB size
-            ,
     ) {
         Icon(
             imageVector = Icons.Default.Add,
@@ -382,109 +449,79 @@ fun AddButton(onClick: ()-> Unit = {}) {
 }
 
 
-@Preview(showSystemUi = true,
-    uiMode = Configuration.UI_MODE_NIGHT_YES,
-)
+
+
 @Composable
-fun DarkTaskManagerPreview() {
-    val mockLinks = listOf(
-        Link(linkName = "Google", link = "https://google.com"),
-        Link(linkName = "GitHub", link = "https://github.com"),
-        Link(linkName = "Jetpack Compose", link = "https://developer.android.com/jetpack/compose"),
-        Link(linkName = "Stack Overflow", link = "https://stackoverflow.com"),
-        Link(linkName = "YouTube", link = "https://youtube.com"),
-        Link(linkName = "Twitter", link = "https://twitter.com"),
-        Link(linkName = "Reddit", link = "https://reddit.com"),
-        Link(linkName = "Medium", link = "https://medium.com"),
-        Link(linkName = "Kotlin Docs", link = "https://kotlinlang.org/docs/home.html"),
-        Link(linkName = "Android Developers", link = "https://developer.android.com"),
-        Link(linkName = "Netflix", link = "https://netflix.com"))
-    LinkManagerTheme {
-        LinkManager()
+fun CategoryChip(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+
+    Surface(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        color = if (isSelected)
+            MaterialTheme.colorScheme.primaryContainer
+        else
+            MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            if (isSelected)
+                MaterialTheme.colorScheme.primary
+            else
+                MaterialTheme.colorScheme.outline
+        )
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            color = if (isSelected)
+                MaterialTheme.colorScheme.onPrimaryContainer
+            else
+                MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
+@Composable
 @Preview(showSystemUi = true,
-    uiMode = Configuration.UI_MODE_NIGHT_NO,
-)
-@Composable
-fun TaskManagerPreview() {
-    val mockLinks = listOf(
-        Link(linkName = "Google", link = "https://google.com"),
-        Link(linkName = "GitHub", link = "https://github.com"),
-        Link(linkName = "Jetpack Compose", link = "https://developer.android.com/jetpack/compose"),
-        Link(linkName = "Stack Overflow", link = "https://stackoverflow.com"),
-        Link(linkName = "YouTube", link = "https://youtube.com"),
-        Link(linkName = "Twitter", link = "https://twitter.com"),
-        Link(linkName = "Reddit", link = "https://reddit.com"),
-        Link(linkName = "Medium", link = "https://medium.com"),
-        Link(linkName = "Kotlin Docs", link = "https://kotlinlang.org/docs/home.html"),
-        Link(linkName = "Android Developers", link = "https://developer.android.com"),
-        Link(linkName = "Netflix", link = "https://netflix.com"))
-    LinkManagerTheme {
-        LinkManager()
-    }
-}
-
-
-@Composable
-fun AddLinkDialogPreview() {
-    AlertDialog(
-        onDismissRequest = { /* Do nothing */ },
-        title = { Text("Add Link") },
-        text = {
-            Column {
-                // Link Name TextField
-                TextField(
-                    value = "", // Empty value for preview
-                    onValueChange = { /* Do nothing */ },
-                    label = { Text("Link Name") }
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                // Link URL TextField
-                TextField(
-                    value = "", // Empty value for preview
-                    onValueChange = { /* Do nothing */ },
-                    label = { Text("Link URL") }
-                )
-
-            }
-        },
-        confirmButton = {
-            Row(Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween){
-                Button(onClick = { /* Do nothing */ }) {
-                    Text("Add", modifier = Modifier.width(45.dp),
-                        textAlign = TextAlign.Center)
-                }
-                Button(onClick = { /* Do nothing */ }) {
-                    Text("Cancel",Modifier.width(45.dp),
-                        textAlign = TextAlign.Center)
-                }
-            }
-        },
-        dismissButton = {
-
-        }
+    uiMode = Configuration.UI_MODE_NIGHT_NO
     )
-}
-
-@Composable
-@Preview(showBackground = true)
 fun DialogBox() {
-    LinkManagerTheme { CategoryDialog { } }
+    LinkManagerTheme {
+        var state by rememberSaveable { mutableStateOf(true) }
+        Box(
+           modifier = Modifier.fillMaxWidth()
+        ){
+            SlidingMenu(
+                visible = state,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                onUpdateCategoryClick = {},
+                onDeleteCategoryClick = {}
+            ) {
+                state = false
+            }
+        }
+    }
 }
 
 
 @Composable
 fun CategoryDialog(
+    link: List<Link>,
+    isUpdate: Boolean,
+    category: LinkCategory = LinkCategory(""),
+    changeCategory : (String) -> Unit,
     onDismiss: () -> Unit = {},
 ) {
-    var categoryName by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    var categoryName by remember { mutableStateOf(category.category) }
     val linkViewModel = hiltViewModel<LinkViewModel>()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Category") },
+        title = { Text(if (!isUpdate)"Add Category" else "Update Category") },
         text = {
             Column {
                 TextField(
@@ -504,10 +541,25 @@ fun CategoryDialog(
                         textAlign = TextAlign.Center)
                 }
                 Button(onClick = {
-                    linkViewModel.addCategory(LinkCategory(categoryName))
-                    onDismiss()
+                    if (!isUpdate) {
+                        if (categoryName.isEmpty()) {
+                            Toast.makeText(context,"Please specify the name of the category",Toast.LENGTH_SHORT).show()
+                        }else {
+                            linkViewModel.addCategory(LinkCategory(categoryName))
+                            onDismiss()
+                        }
+                    }else{
+                        if (categoryName.isEmpty()) {
+                            Toast.makeText(context,"Please specify the name of the category",Toast.LENGTH_SHORT).show()
+                        }else {
+                            link.forEach { linkViewModel.updateLink(Link(it.linkName,it.link,categoryName,it.id)) }
+                            linkViewModel.updateCategory(LinkCategory(categoryName, categoryId = category.categoryId))
+                            changeCategory(categoryName)
+                            onDismiss()
+                        }
+                    }
                 }) {
-                    Text("Add", modifier = Modifier.width(45.dp),
+                    Text(if (!isUpdate) "Add" else "Update", modifier = Modifier.width(45.dp),
                         textAlign = TextAlign.Center)
                 }
             }
@@ -516,3 +568,68 @@ fun CategoryDialog(
         }
     )
 }
+
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SlidingMenu(
+    visible : Boolean,
+    modifier: Modifier = Modifier,
+    onUpdateCategoryClick: () -> Unit,
+    onDeleteCategoryClick: () -> Unit,
+    changeVisibility: () -> Unit = {}
+) {
+    val sheetState = rememberModalBottomSheetState()
+    if (visible) {
+        ModalBottomSheet(
+            sheetState = sheetState,
+            onDismissRequest = changeVisibility
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.tertiaryContainer, // Softer color
+                    )
+                    .padding(horizontal = 8.dp)
+            ) {
+                // Update Category Option
+                Text(
+                    text = "Update Category",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onUpdateCategoryClick()
+                            changeVisibility()
+                        }
+                        .padding(vertical = 15.dp),
+                    fontSize = 24.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp),
+                    textAlign = TextAlign.Center
+                )
+
+                HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                // Delete Category Option
+                Text(
+                    text = "Delete Category",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onDeleteCategoryClick()
+                            changeVisibility()
+                        }
+                        .padding(top = 12.dp, bottom = 20.dp),
+                    fontSize = 24.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+
+}
+
